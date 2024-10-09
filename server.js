@@ -2,7 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import Scraped from './models/Scraped.js';
+import Scraped from './Scraped.js';
 import cors from 'cors'
 
 const app = express();
