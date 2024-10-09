@@ -8,7 +8,7 @@ import cors from 'cors'
 const app = express();
 const PORT = 3000;
 
-mongoose.connect('mongodb+srv://gencoder:kharay2005@cluster0.qicga.mongodb.net/WebScrappingDB?retryWrites=true&w=majority')
+mongoose.connect('mongodb://localhost:27017/webscraping')
   .then(() => console.log('MongoDB Connected'))
   .catch((err) => console.error(err));
 
@@ -18,38 +18,47 @@ app.use(cors({
 }))
 
 app.get('/scrape', async (req, res) => {
-
   const { topic } = req.query;
 
   if (!topic) {
-    return res.status(404).json({ message: "No Query found" })
+    return res.status(404).json({ message: "No Query found" });
   }
 
   try {
-    const url = `https://timesofindia.indiatimes.com/topic/${topic}`;
+    const url = `https://www.ndtv.com/topic/${topic}`;
     const { data } = await axios.get(url);
     const $ = cheerio.load(data);
 
     const scrapedData = [];
-    $('.uwU81').each((index, element) => {
+    $('.src_lst-li').each((index, element) => {
       const imageSrc = $(element).find('img').attr('src');
-      const anchorLink = $(element).find('a').attr('href');
-      const spanText = $(element).find('span').first().text().trim();
-      const paragraphText = $(element).find('p').text().trim();
-      const zxBigText = $(element).find('.ZxBIG').text().trim();
-
-      const Entries = {
-        type: topic,
-        imageSrc,
-        anchorLink,
-        spanText,
-        paragraphText,
-        zxBigText
+      const anchorLink = $(element).find('.src_itm-ttl a').attr('href');
+      const spanText = $(element).find('img').attr('alt');
+      const paragraphText = $(element).find('.src_itm-txt').text().trim();
+      const uploaderAndTime = $(element).find('.src_itm-stx').text().split('|');
+      const source = (uploaderAndTime[0])?.trim();
+      const uploadTime = (uploaderAndTime[2])?.trim();
+      
+      if (source === "India News") {
+        const Entries = {
+          type: topic,
+          imageSrc,
+          anchorLink,
+          spanText,
+          paragraphText,
+          source,
+          uploadTime
+        };
+        scrapedData.push(Entries);
       }
-      scrapedData.push(Entries);
-    })
-    const savedData = await Scraped.insertMany(scrapedData);
-    res.status(200).json(savedData);
+    });
+
+    if (scrapedData.length > 0) {
+      const savedData = await Scraped.insertMany(scrapedData);
+      return res.status(200).json(savedData);
+    } else {
+      return res.status(404).json({ message: "No relevant data found for the topic" });
+    }
   } catch (error) {
     console.error(error);
     res.status(500).send('Error occurred while scraping');

@@ -16,7 +16,10 @@ const scrapedSchema = new mongoose.Schema({
     paragraphText: {
         type: String
     },
-    zxBigText: {
+    source: {
+        type: String
+    },
+    uploadTime: {
         type: String
     }
 })
