@@ -29,8 +29,9 @@ app.get('/scrape', async (req, res) => {
     const { data } = await axios.get(url);
     const $ = cheerio.load(data);
 
+    const existingEntry = await Scraped.findOne();
     const scrapedData = [];
-    $('.src_lst-li').each((index, element) => {
+    $('.src_lst-li').each(async (index, element) => {
       const imageSrc = $(element).find('img').attr('src');
       const anchorLink = $(element).find('.src_itm-ttl a').attr('href');
       const spanText = $(element).find('img').attr('alt');
@@ -38,18 +39,19 @@ app.get('/scrape', async (req, res) => {
       const uploaderAndTime = $(element).find('.src_itm-stx').text().split('|');
       const source = (uploaderAndTime[0])?.trim();
       const uploadTime = (uploaderAndTime[2])?.trim();
-      
+
+      // Only proceed if the source is "India News"
       if (source === "India News") {
-        const Entries = {
+        const entry = {
           type: topic,
           imageSrc,
           anchorLink,
           spanText,
           paragraphText,
           source,
-          uploadTime
+          uploadTime,
         };
-        scrapedData.push(Entries);
+        scrapedData.push(entry);
       }
     });
 
@@ -57,13 +59,14 @@ app.get('/scrape', async (req, res) => {
       const savedData = await Scraped.insertMany(scrapedData);
       return res.status(200).json(savedData);
     } else {
-      return res.status(404).json({ message: "No relevant data found for the topic" });
+      return res.status(404).json({ message: "No relevant data found for the topic or data already exists" });
     }
   } catch (error) {
     console.error(error);
     res.status(500).send('Error occurred while scraping');
   }
 });
+
 
 app.get('/', async (req, res) => {
   try {
