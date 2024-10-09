@@ -29,9 +29,10 @@ app.get('/scrape', async (req, res) => {
     const { data } = await axios.get(url);
     const $ = cheerio.load(data);
 
-    const existingEntry = await Scraped.findOne();
     const scrapedData = [];
-    $('.src_lst-li').each(async (index, element) => {
+
+    // Use Promise.all to handle asynchronous tasks in the loop
+    const scrapePromises = $('.src_lst-li').map(async (index, element) => {
       const imageSrc = $(element).find('img').attr('src');
       const anchorLink = $(element).find('.src_itm-ttl a').attr('href');
       const spanText = $(element).find('img').attr('alt');
@@ -40,20 +41,27 @@ app.get('/scrape', async (req, res) => {
       const source = (uploaderAndTime[0])?.trim();
       const uploadTime = (uploaderAndTime[2])?.trim();
 
-      // Only proceed if the source is "India News"
       if (source === "India News") {
-        const entry = {
-          type: topic,
-          imageSrc,
-          anchorLink,
-          spanText,
-          paragraphText,
-          source,
-          uploadTime,
-        };
-        scrapedData.push(entry);
+        // Check if an entry with the same spanText already exists
+        const exists = await Scraped.findOne({ spanText });
+
+        if (!exists) {
+          const entry = {
+            type: topic,
+            imageSrc,
+            anchorLink,
+            spanText,
+            paragraphText,
+            source,
+            uploadTime,
+          };
+          scrapedData.push(entry);
+        }
       }
-    });
+    }).get(); // Get array of promises
+
+    // Wait for all scraping promises to resolve
+    await Promise.all(scrapePromises);
 
     if (scrapedData.length > 0) {
       const savedData = await Scraped.insertMany(scrapedData);
@@ -77,6 +85,7 @@ app.get('/', async (req, res) => {
 
     let query = Scraped.find();
 
+    // Sort by valid fields if specified
     if (sortField) {
       const validFields = ['imageSrc', 'anchorLink', 'spanText', 'paragraphText', 'zxBigText'];
 
@@ -85,9 +94,13 @@ app.get('/', async (req, res) => {
       }
     }
 
-    const total = await Scraped.countDocuments();
+    // Get total documents for pagination (without any pagination or sorting)
+    const total = await Scraped.countDocuments(query.getFilter()); // Count the documents that match the query
+
+    // Fetch the paginated data
     const data = await query.skip((page - 1) * limit).limit(limit);
 
+    // Respond with the total count and paginated data
     res.status(200).json({
       total,
       page,
@@ -101,21 +114,29 @@ app.get('/', async (req, res) => {
 });
 
 
+
 app.get('/:type', async (req, res) => {
   try {
     const { type } = req.params;
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const page = parseInt(req.query.page, 10) || 1;  // Default to page 1 if not provided
+    const limit = parseInt(req.query.limit, 10) || 10;  // Default to 10 items per page if not provided
+
+    // Validate page and limit to be positive integers
+    if (page < 1 || limit < 1) {
+      return res.status(400).json({ error: 'Page and limit must be positive integers.' });
+    }
 
     const query = Scraped.find({ type });
     const total = await Scraped.countDocuments({ type });
 
+    // Fetch paginated data
     const data = await query.skip((page - 1) * limit).limit(limit);
 
     if (!data || data.length === 0) {
       return res.status(404).json({ error: 'No data found for the given type' });
     }
 
+    // Respond with the total count and paginated data
     res.status(200).json({
       total,
       page,
@@ -127,6 +148,7 @@ app.get('/:type', async (req, res) => {
     res.status(500).json({ error: 'An internal server error occurred. Please try again later.' });
   }
 });
+
 
 app.get("/health", (req, res) => {
   res.send("Health! Ok");
