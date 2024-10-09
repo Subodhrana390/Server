@@ -2,10 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-<<<<<<< HEAD
 import Scraped from './Scraped.js';
-=======
->>>>>>> c5851c8a79d1bbdb412e1d6cca23ec1a2449947c
 import cors from 'cors'
 
 const app = express();
@@ -119,7 +116,23 @@ app.get('/:type', async (req, res) => {
   }
 });
 
+app.get("/health", (req, res) => {
+  res.send("Health! Ok");
+});
+
+const keepAlive = () => {
+  setInterval(async () => {
+    try {
+      const res = await axios.get('https://dmc-server.onrender.com/health');
+      console.log(`Self-ping success: ${res.data}`);
+    } catch (error) {
+      console.error('Self-ping failed:', error.message);
+    }
+  }, 13 * 60 * 1000);
+};
+
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
+  keepAlive();
 });
