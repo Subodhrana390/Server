@@ -8,7 +8,10 @@ import cors from 'cors'
 const app = express();
 const PORT = 3000;
 
-mongoose.connect('mongodb://localhost:27017/webscraping')
+mongoose.connect('mongodb+srv://subodhrana390:admin123@cluster0.nf59uwj.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
+  dbName: "webScraping",
+  serverSelectionTimeoutMS: 30000
+})
   .then(() => console.log('MongoDB Connected'))
   .catch((err) => console.error(err));
 
@@ -31,7 +34,6 @@ app.get('/scrape', async (req, res) => {
 
     const scrapedData = [];
 
-    // Use Promise.all to handle asynchronous tasks in the loop
     const scrapePromises = $('.src_lst-li').map(async (index, element) => {
       const imageSrc = $(element).find('img').attr('src');
       const anchorLink = $(element).find('.src_itm-ttl a').attr('href');
@@ -42,7 +44,6 @@ app.get('/scrape', async (req, res) => {
       const uploadTime = (uploaderAndTime[2])?.trim();
 
       if (source === "India News") {
-        // Check if an entry with the same spanText already exists
         const exists = await Scraped.findOne({ spanText });
 
         if (!exists) {
@@ -58,9 +59,8 @@ app.get('/scrape', async (req, res) => {
           scrapedData.push(entry);
         }
       }
-    }).get(); // Get array of promises
+    }).get();
 
-    // Wait for all scraping promises to resolve
     await Promise.all(scrapePromises);
 
     if (scrapedData.length > 0) {
@@ -76,31 +76,26 @@ app.get('/scrape', async (req, res) => {
 });
 
 
+
 app.get('/', async (req, res) => {
   try {
     const sortField = req.query.sortField;
     const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
-    const page = parseInt(req.query.page) || 1;  // Default to page 1 if not provided
-    const limit = parseInt(req.query.limit) || 10;  // Default to 10 items per page if not provided
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
 
     let query = Scraped.find();
 
-    // Sort by valid fields if specified
     if (sortField) {
       const validFields = ['imageSrc', 'anchorLink', 'spanText', 'paragraphText', 'zxBigText'];
-
       if (validFields.includes(sortField)) {
         query = query.sort({ [sortField]: sortOrder });
       }
     }
 
-    // Get total documents for pagination (without any pagination or sorting)
-    const total = await Scraped.countDocuments(query.getFilter()); // Count the documents that match the query
-
-    // Fetch the paginated data
+    const total = await Scraped.estimatedDocumentCount();
     const data = await query.skip((page - 1) * limit).limit(limit);
 
-    // Respond with the total count and paginated data
     res.status(200).json({
       total,
       page,
@@ -115,28 +110,25 @@ app.get('/', async (req, res) => {
 
 
 
+
 app.get('/:type', async (req, res) => {
   try {
     const { type } = req.params;
-    const page = parseInt(req.query.page, 10) || 1;  // Default to page 1 if not provided
-    const limit = parseInt(req.query.limit, 10) || 10;  // Default to 10 items per page if not provided
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
 
-    // Validate page and limit to be positive integers
     if (page < 1 || limit < 1) {
       return res.status(400).json({ error: 'Page and limit must be positive integers.' });
     }
 
     const query = Scraped.find({ type });
     const total = await Scraped.countDocuments({ type });
-
-    // Fetch paginated data
     const data = await query.skip((page - 1) * limit).limit(limit);
 
     if (!data || data.length === 0) {
       return res.status(404).json({ error: 'No data found for the given type' });
     }
 
-    // Respond with the total count and paginated data
     res.status(200).json({
       total,
       page,
@@ -148,6 +140,7 @@ app.get('/:type', async (req, res) => {
     res.status(500).json({ error: 'An internal server error occurred. Please try again later.' });
   }
 });
+
 
 
 app.get("/health", (req, res) => {
